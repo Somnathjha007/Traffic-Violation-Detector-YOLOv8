@@ -1,0 +1,123 @@
+Report on Debugging and Optimizing TensorFlow Lite Micro on ESP32-S3
+1. Introduction
+This report documents the debugging and optimization process for deploying a TensorFlow Lite Micro (TFLM) model on the ESP32-S3 using the XIAO ESP32-S3 board. The report follows a step-by-step analysis of encountered issues, their explanations, and the solutions implemented. Each version of the code is detailed alongside the respective errors and fixes applied.
+
+2. Version 1: Initial Implementation
+2.1 Code (Initial Attempt)
+#include "esp_camera.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/micro/system_setup.h"
+#include "tensorflow/lite/schema/schema_generated.h"
+
+#define CAMERA_MODEL_XIAO_ESP32S3
+#include "camera_pins.h"
+#include "model.h"  // Your trained TFLite model
+#include "output_handler.h"
+
+namespace {
+const tflite::Model *model = nullptr;
+tflite::MicroInterpreter *interpreter = nullptr;
+TfLiteTensor *input = nullptr;
+TfLiteTensor *output = nullptr;
+tflite::MicroMutableOpResolver<10> resolver;
+resolver.AddConv2D();  // Add support for CONV_2D
+
+constexpr int kTensorArenaSize = 50 * 1024;
+uint8_t tensor_arena[kTensorArenaSize];
+}  // namespace
+2.2 Errors Encountered
+Error 1: Compilation Error
+error: 'resolver' does not name a type
+resolver.AddConv2D();
+Explanation:
+    • The resolver object was declared inside the namespace, but resolver.AddConv2D() was executed outside the namespace.
+Solution:
+    • Move resolver.AddConv2D() inside setup().
+
+3. Version 2: Fixing Scope Issue
+3.1 Updated Code
+namespace {
+const tflite::Model *model = nullptr;
+tflite::MicroInterpreter *interpreter = nullptr;
+TfLiteTensor *input = nullptr;
+TfLiteTensor *output = nullptr;
+constexpr int kTensorArenaSize = 80 * 1024;
+uint8_t tensor_arena[kTensorArenaSize];
+tflite::MicroMutableOpResolver<5> resolver;
+}
+
+void setup() {
+    Serial.begin(115200);
+    resolver.AddConv2D();  
+    resolver.AddFullyConnected();
+    resolver.AddReshape();
+    resolver.AddSoftmax();
+    resolver.AddMaxPool2D();
+}
+3.2 Errors Encountered
+Error 2: "Failed to get registration from op code CONV_2D"
+Failed to get registration from op code CONV_2D
+Failed to allocate tensors
+Explanation:
+    • CONV_2D was not properly registered in the TensorFlow Lite Micro resolver.
+    • The model contains operations that were not explicitly added.
+Solution:
+    • Register all required operations:
+resolver.AddDepthwiseConv2D();
+resolver.AddAveragePool2D();
+resolver.AddQuantize();
+resolver.AddDequantize();
+resolver.AddReLU();
+
+4. Version 3: Increasing Tensor Memory and Debugging Memory Usage
+4.1 Updated Code
+constexpr int kTensorArenaSize = 100 * 1024;
+uint8_t tensor_arena[kTensorArenaSize];
+
+void setup() {
+    Serial.begin(115200);
+    Serial.print("Used Arena Size: ");
+    Serial.println(interpreter->arena_used_bytes());
+}
+4.2 Errors Encountered
+Error 3: "Guru Meditation Error: Core panic'ed"
+Guru Meditation Error: Core  1 panic'ed (LoadProhibited). Exception was unhandled.
+Explanation:
+    • The ESP32-S3 ran out of RAM while allocating tensors.
+    • The model requires more memory than allocated.
+Solution:
+    1. Check Model Memory in Python Before Deploying
+import tensorflow.lite as tflite
+
+interpreter = tflite.Interpreter(model_path="model.tflite")
+interpreter.allocate_tensors()
+
+total_size = sum(tensor['shape'][0] for tensor in interpreter.get_tensor_details())
+print(f"Estimated Memory Usage: {total_size / 1024} KB")
+    2. Enable PSRAM in ESP32-S3:
+static uint8_t *tensor_arena;
+void setup() {
+    tensor_arena = (uint8_t *)ps_malloc(kTensorArenaSize);
+    if (!tensor_arena) {
+        Serial.println("❌ Failed to allocate tensor arena in PSRAM");
+        return;
+    }
+}
+
+5. Final Observations and Recommendations
+5.1 Key Fixes Implemented
+Issue	Solution
+Scope Issue in Resolver	Declared resolver inside namespace and used inside setup()
+CONV_2D Not Registered	Added necessary operations explicitly
+Memory Allocation Errors	Increased tensor arena size, checked model memory before deployment, enabled PSRAM
+ESP32-S3 Crashing	Used ps_malloc() for memory allocation
+5.2 Recommendations
+    • Always analyze the TFLite model in Python before deployment to ensure all required layers are supported.
+    • Enable PSRAM on ESP32-S3 when running larger models.
+    • Use serial prints (interpreter->arena_used_bytes()) to monitor actual memory usage in ESP32-S3.
+
+6. Conclusion
+Through systematic debugging, we resolved multiple issues in deploying the TensorFlow Lite Micro model on the ESP32-S3. Key improvements included fixing scope errors, ensuring all model operations were registered, increasing available memory, and utilizing PSRAM for larger models. These optimizations ensure stable inference on the ESP32-S3.
+
+End of Report

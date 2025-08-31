@@ -1,0 +1,64 @@
+Report on the Implementation of Traffic Light Detection using ESP32-S3 and TensorFlow Lite Micro
+1. Introduction This report details the process of implementing a traffic light detection system using the XIAO ESP32-S3 microcontroller with an onboard camera and TensorFlow Lite Micro for real-time image classification. The objective is to classify images captured by the ESP32-S3 camera as either a "Red Light" or "Green Light" and process the classification results accordingly.
+2. Prerequisites for Training a CNN Model To train a convolutional neural network (CNN) model for traffic light detection, the following prerequisites are required:
+    • Hardware Requirements:
+        ◦ ESP32-S3 (XIAO ESP32-S3 board)
+        ◦ Camera module compatible with ESP32-S3
+        ◦ Computer for training and deployment
+    • Software Requirements:
+        ◦ Anaconda for Python environment management
+        ◦ TensorFlow and Keras for model training
+        ◦ TensorFlow Lite for model conversion
+        ◦ Arduino IDE for programming the ESP32-S3
+        ◦ Required libraries: eloquent_tinyml.h, esp_camera.h
+3. Model Training and Deployment
+    1. Dataset Collection:
+        ◦ Images of traffic lights (Red and Green) were collected and labeled.
+    2. Model Training:
+        ◦ A CNN model was trained using TensorFlow and Keras.
+        ◦ The trained model was converted to TensorFlow Lite format.
+    3. Model Conversion:
+        ◦ The TensorFlow Lite model was quantized and optimized for microcontrollers.
+        ◦ The model was converted into a .h file for integration with the ESP32-S3 firmware.
+4. Implementation and Code Overview The provided code captures images from the camera, preprocesses them, runs inference using the TensorFlow Lite model, and interprets the results to determine whether the detected light is red or green.
+Key Components of the Code:
+    • Library Imports: eloquent_tinyml.h and esp_camera.h
+    • Camera Configuration: Configuring GPIO pins for image capture.
+    • Preprocessing Function: Converts RGB565 image format into a normalized RGB format suitable for model input.
+    • TensorFlow Lite Initialization: Loads the TFLite model and prepares it for inference.
+    • Main Loop Execution: Captures images, preprocesses them, runs inference, and prints results.
+5. Errors Faced and Fixes Implemented During the development and testing of the traffic light detection system, several errors were encountered, and solutions were implemented as follows:
+    1. Namespace Error:
+        ◦ Error: Eloquent was not declared, and TinyML was not recognized as a namespace.
+        ◦ Fix: Removed the incorrect using namespace Eloquent::TinyML; statement and directly used eloquent_tinyml.h functions.
+    2. Model Initialization Error:
+        ◦ Error: TfLite was not recognized as a type.
+        ◦ Fix: Ensured that eloquent_tinyml.h was correctly included and that the model was properly loaded using tf.begin(traffic_light_model_tflite);.
+    3. Variable Not Declared Error:
+        ◦ Error: tf was not declared in the scope, leading to issues when calling tf.predict(input_tensor)[0].
+        ◦ Fix: Declared TfLite<INPUT_SIZE * INPUT_SIZE * CHANNELS, OUTPUT_SIZE> tf; globally before using it in the setup() and loop() functions.
+    4. Model File Not Found:
+        ◦ Error: traffic_light_model_tflite was not found.
+        ◦ Fix: Ensured that the .h file containing the model was properly included and that the array name matched in both the header and the implementation file.
+    5. Camera Initialization Failure:
+        ◦ Error: Camera init failed was printed, meaning the ESP32-S3 camera did not initialize properly.
+        ◦ Fix: Verified the camera GPIO pin configuration, increased xclk_freq_hz, and ensured the camera module was properly connected.
+    6. Incorrect Image Preprocessing:
+        ◦ Error: The model did not classify images correctly.
+        ◦ Fix: Adjusted the preprocessImage() function to correctly extract RGB values from RGB565 format and scale them properly.
+    7. Memory Allocation Issues:
+        ◦ Error: Possible memory corruption due to improper buffer handling.
+        ◦ Fix: Used malloc() for dynamically allocated arrays and ensured esp_camera_fb_return(fb); was called after inference.
+    8. Serial Output Errors:
+        ◦ Error: Debug messages were not printed correctly.
+        ◦ Fix: Ensured Serial.begin(115200); was called in setup() and added more debugging statements for better insights.
+6. Testing and Validation
+    • The ESP32-S3 was programmed using the updated firmware.
+    • The serial monitor output was verified for correct classification.
+    • Edge cases were tested to ensure the model performs well under different lighting conditions.
+7. Conclusion This project successfully demonstrated the implementation of an edge AI model on an ESP32-S3 microcontroller for real-time traffic light detection. The corrected and optimized code ensures efficient execution, proper error handling, and accurate classification results. Future improvements could include optimizing the model further for speed and accuracy, integrating cloud connectivity for data logging, and expanding the dataset for better generalization.
+8. Future Work
+    • Improve model accuracy with additional dataset training.
+    • Optimize preprocessing to reduce computational load.
+    • Implement remote monitoring through a web interface or cloud integration.
+9. Result of the Conversation Through this conversation, we were able to identify and resolve multiple errors in the ESP32-S3 traffic light detection project. The final version of the code runs successfully on the ESP32-S3, correctly capturing and classifying images. The implementation now includes proper error handling, optimized preprocessing, and reliable model execution. Future improvements will focus on further optimizing the model and integrating additional features to enhance the system's robustness.
